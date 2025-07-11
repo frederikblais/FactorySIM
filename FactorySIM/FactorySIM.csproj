@@ -69,6 +69,13 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Models\Machine.cs" />
+    <Compile Include="Models\Material.cs" />
+    <Compile Include="Models\NotifyPropertyChanged.cs" />
+    <Compile Include="Models\Operation.cs" />
+    <Compile Include="Models\ScheduledResource.cs" />
+    <Compile Include="Models\SimulationTime.cs" />
+    <Compile Include="Models\Worker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -93,6 +100,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Converters\" />
+    <Folder Include="ViewModels\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
