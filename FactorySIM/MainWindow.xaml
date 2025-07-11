@@ -1,12 +1,310 @@
 ﻿<Window x:Class="FactorySIM.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:FactorySIM"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        xmlns:converters="clr-namespace:FactorySIM.Converters"
+        Title="FactorySIM - Production Simulation" 
+        Height="800" Width="1400"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        Loaded="Window_Loaded">
+
+    <!-- Value Converters as Resources -->
+    <Window.Resources>
+        <converters:BoolToRunningConverter x:Key="BoolToRunningConverter"/>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:BusyToBackgroundConverter x:Key="BusyToBackgroundConverter"/>
+        <converters:CurrencyConverter x:Key="CurrencyConverter"/>
+        <converters:TimeSpanToStringConverter x:Key="TimeSpanConverter"/>
+        <converters:PriorityToColorConverter x:Key="PriorityToColorConverter"/>
+
+        <!-- Styles for consistent UI -->
+        <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Background" Value="#e0e0e0"/>
+            <Setter Property="Padding" Value="10"/>
+        </Style>
+
+        <Style x:Key="StatusCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#ccc"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="CornerRadius" Value="5"/>
+        </Style>
+
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
     <Grid>
-        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Control Panel -->
+            <RowDefinition Height="*"/>
+            <!-- Main Content -->
+            <RowDefinition Height="Auto"/>
+            <!-- Status Bar -->
+        </Grid.RowDefinitions>
+
+        <!-- Top Control Panel -->
+        <Border Grid.Row="0" Background="#f8f9fa" Padding="15" BorderBrush="#dee2e6" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Time and Status Display -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Simulation Time:" FontWeight="Bold" Margin="0,0,10,0" FontSize="14"/>
+                    <TextBlock Text="{Binding Factory.SimTime.FormattedTime}" FontSize="16" Foreground="#0066cc" FontWeight="Bold"/>
+
+                    <TextBlock Text="Status:" FontWeight="Bold" Margin="30,0,10,0" FontSize="14"/>
+                    <TextBlock Text="{Binding Factory.SimTime.IsRunning, Converter={StaticResource BoolToRunningConverter}}" 
+                               FontSize="14" FontWeight="Bold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Factory.SimTime.IsRunning}" Value="True">
+                                        <Setter Property="Foreground" Value="Green"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Factory.SimTime.IsRunning}" Value="False">
+                                        <Setter Property="Foreground" Value="Red"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="{Binding StatusMessage}" FontStyle="Italic" Margin="20,0,0,0" Foreground="Gray"/>
+                </StackPanel>
+
+                <!-- Control Buttons -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="▶ Start" Command="{Binding StartSimulationCommand}" Style="{StaticResource ActionButtonStyle}"/>
+                    <Button Content="⏸ Stop" Command="{Binding StopSimulationCommand}" Style="{StaticResource ActionButtonStyle}" Background="#f44336"/>
+                    <Button Content="⏭ Step" Command="{Binding StepForwardCommand}" Style="{StaticResource ActionButtonStyle}" Background="#ff9800"/>
+                    <Button Content="+ Worker" Command="{Binding AddWorkerCommand}" Style="{StaticResource ActionButtonStyle}" Background="#2196F3"/>
+                    <Button Content="+ Machine" Command="{Binding AddMachineCommand}" Style="{StaticResource ActionButtonStyle}" Background="#9C27B0"/>
+                    <Button Content="+ Stock" Command="{Binding AddMaterialCommand}" Style="{StaticResource ActionButtonStyle}" Background="#607D8B"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350"/>
+                <!-- Workers Panel -->
+                <ColumnDefinition Width="*"/>
+                <!-- Activity & Operations -->
+                <ColumnDefinition Width="350"/>
+                <!-- Machines & Materials -->
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel - Workers -->
+            <Border Grid.Column="0" Background="#fafafa" BorderBrush="#ddd" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <TextBlock Text="Factory Workers" Style="{StaticResource HeaderTextStyle}" DockPanel.Dock="Top"/>
+
+                    <ScrollViewer DockPanel.Dock="Bottom" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Factory.Workers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource StatusCardStyle}" 
+                                            Background="{Binding IsBusy, Converter={StaticResource BusyToBackgroundConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="14"/>
+                                            <TextBlock Text="{Binding CurrentStatus}" FontSize="12" Foreground="Gray" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding CurrentTask}" FontSize="12" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding SkillsDisplay}" FontSize="11" Foreground="#0066cc" Margin="0,3,0,0"/>
+                                            <TextBlock Text="{Binding HourlyRateDisplay}" FontSize="11" Foreground="#009688" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- Center Panel - Activity Log and Operations -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <!-- Activity Log -->
+                    <RowDefinition Height="300"/>
+                    <!-- Available Operations -->
+                </Grid.RowDefinitions>
+
+                <!-- Activity Log -->
+                <Border Grid.Row="0" Background="White">
+                    <DockPanel>
+                        <Grid DockPanel.Dock="Top">
+                            <TextBlock Text="Activity Log" Style="{StaticResource HeaderTextStyle}"/>
+                            <Button Content="Clear Log" HorizontalAlignment="Right" Margin="10" 
+                                    Click="ClearLog_Click" Background="Transparent" BorderThickness="1"/>
+                        </Grid>
+
+                        <ScrollViewer DockPanel.Dock="Bottom" VerticalScrollBarVisibility="Auto" x:Name="ActivityScrollViewer">
+                            <ListBox ItemsSource="{Binding ActivityLog}" BorderThickness="0" Background="Transparent">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Margin="5,2" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <!-- Available Operations -->
+                <Border Grid.Row="1" Background="#f8f9fa" BorderBrush="#ddd" BorderThickness="0,1,0,0">
+                    <DockPanel>
+                        <TextBlock Text="Available Operations" Style="{StaticResource HeaderTextStyle}" DockPanel.Dock="Top"/>
+
+                        <ScrollViewer DockPanel.Dock="Bottom" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding AvailableOperations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource StatusCardStyle}" Margin="8,4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13"/>
+                                                        <Border Background="{Binding Priority, Converter={StaticResource PriorityToColorConverter}}" 
+                                                                CornerRadius="8" Padding="6,2" Margin="8,0,0,0">
+                                                            <TextBlock Text="{Binding Priority, StringFormat='P{0}'}" Foreground="White" FontSize="10" FontWeight="Bold"/>
+                                                        </Border>
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding Description}" FontSize="11" Foreground="Gray" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding RequirementsDisplay}" FontSize="10" Foreground="#555" Margin="0,3,0,0"/>
+                                                    <TextBlock Text="{Binding MaterialsDisplay}" FontSize="10" Foreground="#0066cc" Margin="0,2,0,0"/>
+                                                </StackPanel>
+
+                                                <Button Grid.Column="1" Content="Execute" 
+                                                        Command="{Binding DataContext.ExecuteOperationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource ActionButtonStyle}"
+                                                        VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- Right Panel - Machines & Materials -->
+            <Border Grid.Column="2" Background="#fafafa" BorderBrush="#ddd" BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <!-- Machines -->
+                        <RowDefinition Height="*"/>
+                        <!-- Materials -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Machines Section -->
+                    <DockPanel Grid.Row="0">
+                        <TextBlock Text="Factory Machines" Style="{StaticResource HeaderTextStyle}" DockPanel.Dock="Top"/>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Factory.Machines}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource StatusCardStyle}"
+                                                Background="{Binding IsBusy, Converter={StaticResource BusyToBackgroundConverter}}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="14"/>
+                                                <TextBlock Text="{Binding MachineType}" FontSize="12" Foreground="Gray"/>
+                                                <TextBlock Text="{Binding CurrentStatus}" FontSize="12" Margin="0,2,0,0"/>
+                                                <TextBlock Text="{Binding CurrentOperation}" FontSize="12" FontWeight="SemiBold"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                    <TextBlock Text="{Binding ProcessingTimeDisplay}" FontSize="11" Foreground="#FF5722"/>
+                                                    <TextBlock Text=" • " FontSize="11" Foreground="Gray"/>
+                                                    <TextBlock Text="{Binding CostDisplay}" FontSize="11" Foreground="#009688"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+
+                    <!-- Materials Section -->
+                    <DockPanel Grid.Row="1">
+                        <TextBlock Text="Materials Inventory" Style="{StaticResource HeaderTextStyle}" DockPanel.Dock="Top"/>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Factory.Materials.Values}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource StatusCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="14"/>
+                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="12" 
+                                                           Foreground="{Binding IsLowStock, Converter={StaticResource BoolToColorConverter}}"
+                                                           FontWeight="SemiBold" Margin="0,2,0,0"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                    <TextBlock Text="{Binding CostDisplay}" FontSize="11" Foreground="#009688"/>
+                                                    <TextBlock Text=" • " FontSize="11" Foreground="Gray"/>
+                                                    <TextBlock Text="{Binding TotalValueDisplay}" FontSize="11" Foreground="#795548"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Bottom Status Bar -->
+        <Border Grid.Row="2" Background="#343a40" Padding="15,10" BorderBrush="#495057" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" 
+                           Text="{Binding Factory.OperationsCompleted, StringFormat='Completed: {0}'}" 
+                           Foreground="White" FontWeight="Bold"/>
+                <TextBlock Grid.Column="1" 
+                           Text="{Binding Factory.OperationsInProgress, StringFormat='In Progress: {0}'}" 
+                           Foreground="White" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="2" 
+                           Text="{Binding Factory.CostDisplay, StringFormat='Total Cost: {0}'}" 
+                           Foreground="White" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock Grid.Column="3" 
+                           Text="{Binding Factory.EfficiencyDisplay, StringFormat='Efficiency: {0}'}" 
+                           Foreground="White" FontWeight="Bold" HorizontalAlignment="Right"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
