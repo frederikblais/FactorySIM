@@ -69,6 +69,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Models\Factory.cs" />
     <Compile Include="Models\Machine.cs" />
     <Compile Include="Models\Material.cs" />
     <Compile Include="Models\NotifyPropertyChanged.cs" />
